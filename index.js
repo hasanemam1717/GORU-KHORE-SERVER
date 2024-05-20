@@ -27,6 +27,7 @@ async function run() {
 
     const menuCollection = client.db("goruDB").collection("menu");
     const reviews = client.db("goruDB").collection("reviews");
+    const carts = client.db("goruDB").collection("carts");
 
     app.get('/menu' , async (req, res) => {
       const result = await menuCollection.find().toArray();
@@ -35,6 +36,19 @@ async function run() {
    
     app.get('/reviews' , async (req, res) => {
       const result = await reviews.find().toArray();
+      res.json(result);
+    })
+
+    app.post('/carts' , async (req, res) => {
+      const cartsItem = req.body
+      const result = await carts.insertOne(cartsItem);
+      res.json(result);
+    })
+
+    app.get('/carts' , async (req, res) => {
+      const email = req.query.email
+      const query = {email: email}
+      const result = await carts.find(query).toArray();
       res.json(result);
     })
 
