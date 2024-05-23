@@ -26,9 +26,46 @@ async function run() {
     await client.connect();
 
     const menuCollection = client.db("goruDB").collection("menu");
-    const reviews = client.db("goruDB").collection("reviews");
+    const reviews = client.db("goruDB").collection("reviews"); 
     const carts = client.db("goruDB").collection("carts");
+    const dataUsers = client.db("goruDB").collection("dataUsers");
 
+
+    // users related api
+    app.get('/allusers',async (req, res,) => {
+      const result  = await dataUsers.find().toArray();
+      res.send(result); 
+    })
+    app.post("/dataUsers", async(req , res) => {
+      const data = req.body;
+      const query = {email:data.email}
+      const exastingUser = await dataUsers.findOne(query)
+      if(exastingUser){
+        return res.send({massage:"User already exist",insertedId:null})
+      }
+      const result = await dataUsers.insertOne(data);
+      res.send(result);
+
+    })
+
+    app.patch('/allUsers/admin/:id', async(req, res) => {
+      const id = req.params.id
+      const filter = {_id : new ObjectId(id) }
+      const updateDoc = { $set: { role: "admin" } }
+      const result = await dataUsers.updateOne(filter, updateDoc);
+      res.send(result);
+    })
+
+
+    app.delete('/allusers/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = {_id : new ObjectId(id) } 
+      const result = await dataUsers.deleteOne(query);
+      res.send(result);
+    })
+
+
+    // menu related apis
     app.get('/menu' , async (req, res) => {
       const result = await menuCollection.find().toArray();
       res.json(result);
