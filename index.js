@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const port = process.env.PORT || 5000;
 require('dotenv').config()
@@ -30,9 +31,55 @@ async function run() {
     const carts = client.db("goruDB").collection("carts");
     const dataUsers = client.db("goruDB").collection("dataUsers");
 
+    // jwt related api
+    app.post('/jwt', async (req, res) => {
+      const user = req.body
+      const token = jwt.sign(user,process.env.ACCESS_TOKEN,{expiresIn:'1h'});
+      res.send(token);
+    })
+
+    // middleware
+    const verifyToken = (req,res,next) => {
+      console.log("Inside verify token",req.headers.authorization);
+      if(!req.headers.authorization ){
+ 
+        return res.status(401).send({
+          message: "No token provided!"
+        });
+      }
+      const token  = req.headers.authorization.split(" ")[1];
+     jwt.verify(token,process.env.ACCESS_TOKEN,(err,decoded) =>{
+      if(err){
+        return res.status(401).send({
+          message: "Invalid token!"
+        });
+
+      }
+      req.decoded = decoded;
+      next();
+ 
+     })
+      // next();
+
+    }
+
+    const verifyAdmin =async (req,res,next) => {
+      const email = req.decoded.email
+      const query = {email: email}
+      const user = await dataUsers.findOne(query)
+      const isAdmin = user?.role === "admin"  
+      if(!isAdmin){
+        return res.status(403).send({
+          message: "You are not admin!"
+        });
+       
+      }
+      next()
+
+    }
 
     // users related api
-    app.get('/allusers',async (req, res,) => {
+    app.get('/allusers',verifyToken,verifyAdmin,async (req, res,) => {
       const result  = await dataUsers.find().toArray();
       res.send(result); 
     })
@@ -48,7 +95,22 @@ async function run() {
 
     })
 
-    app.patch('/allUsers/admin/:id', async(req, res) => {
+    app.get('/allusers/admin/:email',verifyToken, async(req, res) => {
+      const email  = req.params.email;
+      if(email !== req.decoded.email){
+        return res.status(403).send({massage:"User already exist"})
+      }
+      const query = {email: email}
+      const user = await dataUsers.findOne(query);
+      let isAdmin = false
+      if(user){
+        isAdmin = user.role === "admin"
+
+      }
+      res.send({isAdmin})
+    })
+
+    app.patch('/allUsers/admin/:id',verifyAdmin,verifyToken, async(req, res) => {
       const id = req.params.id
       const filter = {_id : new ObjectId(id) }
       const updateDoc = { $set: { role: "admin" } }
@@ -57,7 +119,7 @@ async function run() {
     })
 
 
-    app.delete('/allusers/:id', async (req, res) => {
+    app.delete('/allusers/:id', verifyAdmin,verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = {_id : new ObjectId(id) } 
       const result = await dataUsers.deleteOne(query);
