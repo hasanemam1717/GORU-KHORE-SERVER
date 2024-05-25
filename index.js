@@ -39,7 +39,7 @@ async function run() {
     })
 
     // middleware
-    const verifyToken = (req,res,next) => {
+    const verifyToken = async (req,res,next) => {
       console.log("Inside verify token",req.headers.authorization);
       if(!req.headers.authorization ){
  
@@ -47,8 +47,8 @@ async function run() {
           message: "No token provided!"
         });
       }
-      const token  = req.headers.authorization.split(" ")[1];
-     jwt.verify(token,process.env.ACCESS_TOKEN,(err,decoded) =>{
+      const token  = await req.headers.authorization.split(" ")[1];
+     await jwt.verify(token,process.env.ACCESS_TOKEN,(err,decoded) =>{
       if(err){
         return res.status(401).send({
           message: "Invalid token!"
@@ -56,6 +56,7 @@ async function run() {
 
       }
       req.decoded = decoded;
+      console.log( decoded);
       next();
  
      })
@@ -64,9 +65,11 @@ async function run() {
     }
 
     const verifyAdmin =async (req,res,next) => {
-      const email = req.decoded.email
-      const query = {email: email}
+      const email = await req?.decoded?.email;
+      console.log(2,await req?.decoded);
+      const query = {email: email ? email:""}
       const user = await dataUsers.findOne(query)
+      console.log(1,user);
       const isAdmin = user?.role === "admin"  
       if(!isAdmin){
         return res.status(403).send({
@@ -79,12 +82,12 @@ async function run() {
     }
 
     // users related api
-    app.get('/allusers',verifyToken,verifyAdmin,async (req, res,) => {
+    app.get('/allusers',async (req, res,) => {
       const result  = await dataUsers.find().toArray();
       res.send(result); 
     })
     app.post("/dataUsers", async(req , res) => {
-      const data = req.body;
+      const data = req.body.email
       const query = {email:data.email}
       const exastingUser = await dataUsers.findOne(query)
       if(exastingUser){
@@ -110,7 +113,7 @@ async function run() {
       res.send({isAdmin})
     })
 
-    app.patch('/allUsers/admin/:id',verifyAdmin,verifyToken, async(req, res) => {
+    app.patch('/allusers/admin/:id',verifyToken,verifyAdmin, async(req, res) => {
       const id = req.params.id
       const filter = {_id : new ObjectId(id) }
       const updateDoc = { $set: { role: "admin" } }
@@ -119,7 +122,7 @@ async function run() {
     })
 
 
-    app.delete('/allusers/:id', verifyAdmin,verifyToken, async (req, res) => {
+    app.delete('/allusers/:id',verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = {_id : new ObjectId(id) } 
       const result = await dataUsers.deleteOne(query);
