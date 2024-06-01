@@ -1,9 +1,10 @@
 const express = require('express');
 const app = express();
 const jwt = require('jsonwebtoken');
+require('dotenv').config()
+const stripe = require('stripe')(process.env.STRIPE_SECRET)
 const cors = require('cors');
 const port = process.env.PORT || 5000;
-require('dotenv').config()
 // Middleware
 
 app.use(cors());
@@ -30,6 +31,7 @@ async function run() {
     const reviews = client.db("goruDB").collection("reviews"); 
     const carts = client.db("goruDB").collection("carts");
     const dataUsers = client.db("goruDB").collection("dataUsers");
+    const payments = client.db("goruDB").collection("payments");
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -162,7 +164,7 @@ app.patch('/menu/:id', async (req, res) => {
   } 
 }
   const result = await menuCollection.updateOne(filter, updateDoc)
-  res.send(result);
+  res.send(result); 
 })
 
     app.get('/menu/:id', async(req, res) => {
@@ -198,7 +200,45 @@ app.patch('/menu/:id', async (req, res) => {
     }) 
 
 
+    app.post("/create-payment-intent", async (req, res) =>{
+      const {price} = req.body;
+      const amount = parseInt(price*100)
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount:amount,
+        currency: "usd",
+        payment_method_types: ["card"]
+      })
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
 
+
+// payment related api
+
+app.get('/payments/:email',verifyToken, async (req, res) =>{
+  const query ={email:req.params.email}
+  if (req.query.email !== req.decoded.email ){
+    return res.status(403).send({
+      message: "You are not admin!"
+    });
+  }
+  const result = await payments.find(query).toArray();
+  res.send(result);
+})
+
+app.post('/payments', async (req, res) =>{
+  const payment = req.body;
+  const result = await payments.insertOne(payment);
+
+  // carefully delete 
+  const query = { _id: {
+    $in:payment.cartIds.map(id =>new ObjectId(id))
+  }}
+  const deleteResult = await payments.deleteMany(query);
+  res.send({result,deleteResult});
+
+})
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
